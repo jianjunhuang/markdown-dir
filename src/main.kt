@@ -11,12 +11,12 @@ fun main(args: Array<String>) {
 //        dir = args[0]
 //    }
     val markdownDir = MarkdownDir()
-    markdownDir.createDir("D:\\gitbook")
+    markdownDir.generateDir("/home/jianjunhuang/code/gitbook")
 }
 
 class MarkdownDir {
 
-    fun createDir(dir: String) {
+    fun generateDir(dir: String) {
         val mainFile = File(dir)
         if (!mainFile.exists() || !mainFile.isDirectory) {
             println("please make sure input an exists dir!!")
@@ -31,7 +31,7 @@ class MarkdownDir {
         var bufferedWriter: BufferedWriter? = null
         try {
             bufferedWriter = BufferedWriter(FileWriter(readeMe))
-            createDir(bufferedWriter, mainDir)
+            generateDir(bufferedWriter, mainDir, 0)
         } catch (e: IOException) {
             println(e)
         } finally {
@@ -39,21 +39,31 @@ class MarkdownDir {
         }
     }
 
-    private fun createDir(writer: BufferedWriter, mainDir: Dir) {
+    private fun generateDir(writer: BufferedWriter, mainDir: Dir, level: Int) {
         for (dir in mainDir.dirs) {
             if (dir.dirs.isNotEmpty()) {
-                writer.appendln("## [${mainDir.name} [${mainDir.dirs.size}] ](${mainDir.path})")
-                createDir(writer, dir)
-                writer.appendln("----------------")
+                if (level <= 0) {
+                    writer.appendln("## [${dir.name} [${dir.dirs.size}] ](${dir.path})")
+                    generateDir(writer, dir, level + 1)
+                    writer.appendln("----------------")
+                } else {
+                    writer.appendln(formatTitle(dir, level))
+                    generateDir(writer, dir, level + 1)
+                }
             } else {
-                writer.appendln(formatTitle(dir))
+                if (dir.isFile)
+                    writer.appendln(formatTitle(dir, level))
             }
         }
     }
 
-    private fun formatTitle(fileDir: Dir): String {
+    private fun formatTitle(fileDir: Dir, level: Int): String {
         val sb = StringBuilder()
-        sb.append(" - [$fileDir.name]($fileDir.path)")
+        var index = level
+        while (--index > 0) {
+            sb.append("  ")
+        }
+        sb.append("- [${fileDir.name}](${fileDir.path})")
         return sb.toString()
     }
 
@@ -66,21 +76,23 @@ class MarkdownDir {
                     if (subFile.name.startsWith('.')) {
                         continue
                     }
-                    val subDir = Dir(subFile.name, subFile.path)
+                    val subDir = Dir(subFile.name, subFile.path, isFile = false)
                     dir.dirs.add(subDir)
                     coverFileToDir(subFile, subDir)
                 } else {
                     val fileName = subFile.name
                     val fileSuffix = fileName.substringAfterLast(".", "")
                     if (fileSuffix == "md") {
+                        var reader: BufferedReader? = null
                         try {
-                            val reader = BufferedReader(FileReader(subFile))
-                            val mdDir = Dir(reader.readLine() ?: "".trim().removePrefix("#"), subFile.path)
+                            reader = BufferedReader(FileReader(subFile))
+                            val name = reader.readLine() ?: ""
+                            val mdDir = Dir(name.trim().removePrefix("#"), subFile.path, isFile = true)
                             dir.dirs.add(mdDir)
                         } catch (e: IOException) {
                             println(e)
                         } finally {
-
+                            reader?.close()
                         }
                     }
                 }
@@ -91,7 +103,8 @@ class MarkdownDir {
     data class Dir(
         val name: String,
         val path: String,
-        val dirs: ArrayList<Dir> = EMPTY_LIST
+        val dirs: ArrayList<Dir> = ArrayList(),
+        var isFile: Boolean = false
     )
 
     companion object {
